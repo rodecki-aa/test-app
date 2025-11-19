@@ -1,0 +1,107 @@
+name: Build and Deploy to AWS ECS
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPOSITORY: aacars/test
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Get secrets from AWS Secrets Manager
+      uses: aws-actions/aws-secretsmanager-get-secrets@v2
+      with:
+        secret-ids: |
+          symfony-app-secrets
+        parse-json-secrets: true
+
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build, tag, and push image to Amazon ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        # Build a docker container and push it to ECR
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:latest .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Update CloudFormation stack
+      env:
+        STACK_NAME: symfony-app-stack
+        IMAGE_URI: ${{ steps.build-image.outputs.image }}
+      run: |
+        # Check if stack exists
+        if aws cloudformation describe-stacks --stack-name $STACK_NAME > /dev/null 2>&1; then
+          echo "Updating existing stack..."
+          aws cloudformation update-stack \
+            --stack-name $STACK_NAME \
+            --template-body file://symfony-ecs.yaml \
+            --parameters ParameterKey=ImageURI,ParameterValue=$IMAGE_URI \
+                        ParameterKey=ServiceName,ParameterValue=symfony-app \
+            --capabilities CAPABILITY_IAM
+
+          echo "Waiting for stack update to complete..."
+          aws cloudformation wait stack-update-complete --stack-name $STACK_NAME
+        else
+          echo "Creating new stack..."
+          aws cloudformation create-stack \
+            --stack-name $STACK_NAME \
+            --template-body file://symfony-ecs.yaml \
+            --parameters ParameterKey=ImageURI,ParameterValue=$IMAGE_URI \
+                        ParameterKey=ServiceName,ParameterValue=symfony-app \
+            --capabilities CAPABILITY_IAM
+
+          echo "Waiting for stack creation to complete..."
+          aws cloudformation wait stack-create-complete --stack-name $STACK_NAME
+        fi
+
+    - name: Force ECS service update
+      env:
+        CLUSTER_NAME: symfony-app-cluster
+        SERVICE_NAME: symfony-app-service
+      run: |
+        # Force new deployment to pick up the new image
+        aws ecs update-service \
+          --cluster $CLUSTER_NAME \
+          --service $SERVICE_NAME \
+          --force-new-deployment
+
+    - name: Get application URL
+      run: |
+        # Get the load balancer URL
+        LOAD_BALANCER_URL=$(aws cloudformation describe-stacks \
+          --stack-name symfony-app-stack \
+          --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerURL`].OutputValue' \
+          --output text)
+
+        echo "Application deployed successfully!"
+        echo "Application URL: $LOAD_BALANCER_URL"
+
+        # Add URL as job summary
+        echo "## Deployment Complete! 🚀" >> $GITHUB_STEP_SUMMARY
+        echo "Your Symfony application is available at: [$LOAD_BALANCER_URL]($LOAD_BALANCER_URL)" >> $GITHUB_STEP_SUMMARY
