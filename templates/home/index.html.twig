@@ -2,7 +2,16 @@
 
 {% block title %}☁{% endblock %}
 
+{% block stylesheets %}
+    <style>
+        .cloud-icon {
+            font-size: 5em;
+            display: inline-block;
+        }
+    </style>
+{% endblock %}
+
 {% block body %}
-    <h1>Hi Tomasz</h1>
-    <p>We want to use Clouds ☁</p>
+    <h1>Run it in clouds</h1>
+    <p class="cloud-icon">☁</p>
 {% endblock %}
