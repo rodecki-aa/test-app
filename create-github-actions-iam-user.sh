@@ -8,6 +8,9 @@ POLICIES=(
   "arn:aws:iam::aws:policy/CloudWatchLogsFullAccess"
   "arn:aws:iam::aws:policy/AWSCloudFormationFullAccess"
   "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+  "arn:aws:iam::aws:policy/IAMFullAccess"
+  "arn:aws:iam::aws:policy/AmazonVPCFullAccess"
+  "arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess"
 )
 
 # 1. Create IAM user
