@@ -53,13 +53,43 @@ jobs:
         id: check-stack
         run: |
           if aws cloudformation describe-stacks --stack-name ${{ env.CLOUDFORMATION_STACK }} --region ${{ env.AWS_REGION }} 2>/dev/null; then
+            STACK_STATUS=$(aws cloudformation describe-stacks \
+              --stack-name ${{ env.CLOUDFORMATION_STACK }} \
+              --query 'Stacks[0].StackStatus' \
+              --output text \
+              --region ${{ env.AWS_REGION }})
+
             echo "stack_exists=true" >> $GITHUB_OUTPUT
+            echo "stack_status=$STACK_STATUS" >> $GITHUB_OUTPUT
+
+            # If stack is in ROLLBACK_COMPLETE or failed state, it needs to be deleted
+            if [[ "$STACK_STATUS" == "ROLLBACK_COMPLETE" ]] || [[ "$STACK_STATUS" == "CREATE_FAILED" ]] || [[ "$STACK_STATUS" == "UPDATE_ROLLBACK_COMPLETE" ]]; then
+              echo "needs_deletion=true" >> $GITHUB_OUTPUT
+            else
+              echo "needs_deletion=false" >> $GITHUB_OUTPUT
+            fi
           else
             echo "stack_exists=false" >> $GITHUB_OUTPUT
+            echo "needs_deletion=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Delete failed CloudFormation stack
+        if: steps.check-stack.outputs.needs_deletion == 'true'
+        run: |
+          echo "Stack is in ${{ steps.check-stack.outputs.stack_status }} state. Deleting..."
+          aws cloudformation delete-stack \
+            --stack-name ${{ env.CLOUDFORMATION_STACK }} \
+            --region ${{ env.AWS_REGION }}
+
+          echo "Waiting for stack deletion to complete..."
+          aws cloudformation wait stack-delete-complete \
+            --stack-name ${{ env.CLOUDFORMATION_STACK }} \
+            --region ${{ env.AWS_REGION }}
+
+          echo "Stack deleted successfully"
+
       - name: Deploy CloudFormation stack (Create)
-        if: steps.check-stack.outputs.stack_exists == 'false'
+        if: steps.check-stack.outputs.stack_exists == 'false' || steps.check-stack.outputs.needs_deletion == 'true'
         run: |
           aws cloudformation create-stack \
             --stack-name ${{ env.CLOUDFORMATION_STACK }} \
@@ -77,7 +107,7 @@ jobs:
             --region ${{ env.AWS_REGION }}
 
       - name: Update CloudFormation stack
-        if: steps.check-stack.outputs.stack_exists == 'true'
+        if: steps.check-stack.outputs.stack_exists == 'true' && steps.check-stack.outputs.needs_deletion == 'false'
         run: |
           # Check if stack is in a state that can be updated
           STACK_STATUS=$(aws cloudformation describe-stacks \
