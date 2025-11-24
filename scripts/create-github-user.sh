@@ -58,6 +58,10 @@ POLICY_DOCUMENT='{
     {
       "Effect": "Allow",
       "Action": [
+        "ecs:CreateCluster",
+        "ecs:DeleteCluster",
+        "ecs:CreateService",
+        "ecs:DeleteService",
         "ecs:UpdateService",
         "ecs:DescribeServices",
         "ecs:DescribeTasks",
