@@ -1,0 +1,129 @@
+name: Deploy to AWS ECS
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  AWS_REGION: eu-central-1
+  ECR_REPOSITORY: aacars/test
+  ECS_CLUSTER: symfony-app-cluster
+  ECS_SERVICE: symfony-app-service
+  CLOUDFORMATION_STACK: symfony-app-stack
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Create ECR repository if not exists
+        run: |
+          aws ecr describe-repositories --repository-names ${{ env.ECR_REPOSITORY }} --region ${{ env.AWS_REGION }} || \
+          aws ecr create-repository --repository-name ${{ env.ECR_REPOSITORY }} --region ${{ env.AWS_REGION }}
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG .
+          docker tag $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG
+          docker push $ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:latest
+          echo "image=$ECR_REGISTRY/${{ env.ECR_REPOSITORY }}:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Check if CloudFormation stack exists
+        id: check-stack
+        run: |
+          if aws cloudformation describe-stacks --stack-name ${{ env.CLOUDFORMATION_STACK }} --region ${{ env.AWS_REGION }} 2>/dev/null; then
+            echo "stack_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "stack_exists=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy CloudFormation stack (Create)
+        if: steps.check-stack.outputs.stack_exists == 'false'
+        run: |
+          aws cloudformation create-stack \
+            --stack-name ${{ env.CLOUDFORMATION_STACK }} \
+            --template-body file://symfony-ecs.yaml \
+            --parameters \
+              ParameterKey=ImageURI,ParameterValue=${{ steps.build-image.outputs.image }} \
+              ParameterKey=DBPassword,ParameterValue=${{ secrets.DB_PASSWORD }} \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ env.AWS_REGION }}
+
+          echo "Waiting for stack creation to complete..."
+          aws cloudformation wait stack-create-complete \
+            --stack-name ${{ env.CLOUDFORMATION_STACK }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update CloudFormation stack
+        if: steps.check-stack.outputs.stack_exists == 'true'
+        run: |
+          # Check if stack is in a state that can be updated
+          STACK_STATUS=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.CLOUDFORMATION_STACK }} \
+            --query 'Stacks[0].StackStatus' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+
+          if [[ "$STACK_STATUS" == "CREATE_IN_PROGRESS" ]] || [[ "$STACK_STATUS" == "UPDATE_IN_PROGRESS" ]]; then
+            echo "Stack is currently being updated. Skipping update."
+            exit 0
+          fi
+
+          aws cloudformation update-stack \
+            --stack-name ${{ env.CLOUDFORMATION_STACK }} \
+            --template-body file://symfony-ecs.yaml \
+            --parameters \
+              ParameterKey=ImageURI,ParameterValue=${{ steps.build-image.outputs.image }} \
+              ParameterKey=DBPassword,UsePreviousValue=true \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --region ${{ env.AWS_REGION }} || echo "No updates to be performed"
+
+      - name: Force new ECS deployment
+        if: steps.check-stack.outputs.stack_exists == 'true'
+        run: |
+          aws ecs update-service \
+            --cluster ${{ env.ECS_CLUSTER }} \
+            --service ${{ env.ECS_SERVICE }} \
+            --force-new-deployment \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Get application URL
+        run: |
+          URL=$(aws cloudformation describe-stacks \
+            --stack-name ${{ env.CLOUDFORMATION_STACK }} \
+            --query 'Stacks[0].Outputs[?OutputKey==`LoadBalancerURL`].OutputValue' \
+            --output text \
+            --region ${{ env.AWS_REGION }})
+          echo "Application URL: $URL"
+          echo "APPLICATION_URL=$URL" >> $GITHUB_ENV
+
+      - name: Deployment summary
+        run: |
+          echo "### Deployment Complete! :rocket:" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Application URL:** ${{ env.APPLICATION_URL }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Image:** ${{ steps.build-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Region:** ${{ env.AWS_REGION }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Stack:** ${{ env.CLOUDFORMATION_STACK }}" >> $GITHUB_STEP_SUMMARY
+

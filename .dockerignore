@@ -1,0 +1,16 @@
+vendor/
+var/cache/
+var/log/
+var/sessions/
+node_modules/
+.git/
+.env.local
+.env.*.local
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.md
+.editorconfig
+.gitignore
+
