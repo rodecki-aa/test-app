@@ -14,7 +14,7 @@ Parameters:
 
   DBUsername:
     Type: String
-    Default: 'symfony_user'
+    Default: 'vcars'
     Description: 'Database master username'
     MinLength: 1
     MaxLength: 16
