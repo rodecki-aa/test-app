@@ -44,6 +44,29 @@ services:
     networks:
       - symfony-network
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: symfony-app
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - /var/www/html/vendor
+    environment:
+      - APP_ENV=dev
+      - APP_SECRET=ba385594e003b47ad7eb6b2abd76501a
+      - DATABASE_URL=mysql://vcars:password123@mysql:3306/symfony_db?serverVersion=8.0&charset=utf8mb4
+      - OPENSEARCH_HOST=http://opensearch:9200
+      - OPENSEARCH_USERNAME=admin
+      - OPENSEARCH_PASSWORD=admin
+    depends_on:
+      - mysql
+      - opensearch
+    networks:
+      - symfony-network
+
 volumes:
   opensearch-data:
   mysql-data:
