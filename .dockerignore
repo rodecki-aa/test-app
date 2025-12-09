@@ -1,16 +1,61 @@
-vendor/
+# Git files
+.git
+.gitignore
+.gitattributes
+
+# Docker files
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Documentation
+README.md
+README-DEPLOYMENT.md
+*.md
+
+# Environment files
+.env.local
+.env.*.local
+.env.test
+.env.test.local
+
+# Cache and logs
 var/cache/
 var/log/
 var/sessions/
+
+# Vendor (will be copied from composer stage)
+vendor/
+
+# Node modules
 node_modules/
-.git/
-.env.local
-.env.*.local
-.DS_Store
-Thumbs.db
+npm-debug.log
+yarn-error.log
+
+# IDE files
 .idea/
 .vscode/
-*.md
-.editorconfig
-.gitignore
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Tests
+tests/
+phpunit.xml
+phpunit.xml.dist
+.phpunit.result.cache
+
+# Build tools
+.php_cs.cache
+.php-cs-fixer.cache
+
+# Scripts
+scripts/
+
+# GitHub
+.github/
 
