@@ -3,3 +3,28 @@ home:
     controller: App\Controller\HomeController::index
     methods: [GET]
 
+api_cars_create:
+    path: /api/cars
+    controller: App\Controller\CarController::create
+    methods: [POST]
+
+api_cars_list:
+    path: /api/cars
+    controller: App\Controller\CarController::list
+    methods: [GET]
+
+api_cars_get:
+    path: /api/cars/{id}
+    controller: App\Controller\CarController::get
+    methods: [GET]
+
+api_cars_delete:
+    path: /api/cars/{id}
+    controller: App\Controller\CarController::delete
+    methods: [DELETE]
+
+api_cars_init_index:
+    path: /api/cars/init-index
+    controller: App\Controller\CarController::initIndex
+    methods: [POST]
+
