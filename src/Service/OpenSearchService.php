@@ -31,10 +31,9 @@ class OpenSearchService
             $clientBuilder->setBasicAuthentication($this->opensearchUsername, $this->opensearchPassword);
         }
 
-        // For development with self-signed certificates
-        if ($_ENV['APP_ENV'] === 'dev') {
-            $clientBuilder->setSSLVerification(false);
-        }
+        // AWS OpenSearch VPC endpoints use self-signed certificates
+        // Disable SSL verification for both dev and prod when using AWS
+        $clientBuilder->setSSLVerification(false);
 
         $this->client = $clientBuilder->build();
     }

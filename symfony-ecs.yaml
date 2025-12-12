@@ -182,6 +182,25 @@ Resources:
         - Key: Name
           Value: !Sub '${ServiceName}-rds-sg'
 
+  OpenSearchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ServiceName}-opensearch-sg'
+      GroupDescription: 'Security group for OpenSearch'
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+        - IpProtocol: tcp
+          FromPort: 9200
+          ToPort: 9200
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-opensearch-sg'
+
   # Database Subnet Group
   DBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
@@ -264,6 +283,14 @@ Resources:
                 Action:
                   - secretsmanager:GetSecretValue
                 Resource: '*'
+              - Effect: Allow
+                Action:
+                  - es:ESHttpGet
+                  - es:ESHttpPost
+                  - es:ESHttpPut
+                  - es:ESHttpDelete
+                  - es:ESHttpHead
+                Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${ServiceName}-opensearch/*'
 
   # CloudWatch Log Group
   LogGroup:
@@ -282,6 +309,46 @@ Resources:
       DefaultCapacityProviderStrategy:
         - CapacityProvider: FARGATE
           Weight: 1
+
+  # OpenSearch Domain
+  OpenSearchDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      DomainName: !Sub '${ServiceName}-opensearch'
+      EngineVersion: 'OpenSearch_2.11'
+      ClusterConfig:
+        InstanceType: 't3.small.search'
+        InstanceCount: 1
+        DedicatedMasterEnabled: false
+        ZoneAwarenessEnabled: false
+      EBSOptions:
+        EBSEnabled: true
+        VolumeType: gp3
+        VolumeSize: 10
+      AccessPolicies:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action: 'es:*'
+            Resource: !Sub 'arn:aws:es:${AWS::Region}:${AWS::AccountId}:domain/${ServiceName}-opensearch/*'
+      VPCOptions:
+        SubnetIds:
+          - !Ref PublicSubnet1
+        SecurityGroupIds:
+          - !Ref OpenSearchSecurityGroup
+      EncryptionAtRestOptions:
+        Enabled: true
+      NodeToNodeEncryptionOptions:
+        Enabled: true
+      DomainEndpointOptions:
+        EnforceHTTPS: true
+      AdvancedSecurityOptions:
+        Enabled: false
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-opensearch'
 
   # ECS Task Definition
   TaskDefinition:
@@ -310,6 +377,12 @@ Resources:
               Value: 'ba385594e003b47ad7eb6b2abd76501a'
             - Name: DATABASE_URL
               Value: !Sub 'mysql://${DBUsername}:${DBPassword}@${MySQLDatabase.Endpoint.Address}:3306/${DBName}?serverVersion=8.0.39&charset=utf8mb4'
+            - Name: OPENSEARCH_HOST
+              Value: !Sub 'https://${OpenSearchDomain.DomainEndpoint}'
+            - Name: OPENSEARCH_USERNAME
+              Value: ''
+            - Name: OPENSEARCH_PASSWORD
+              Value: ''
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -411,6 +484,12 @@ Outputs:
   DatabaseURL:
     Description: 'Complete Database URL for Symfony'
     Value: !Sub 'mysql://${DBUsername}:${DBPassword}@${MySQLDatabase.Endpoint.Address}:3306/${DBName}?serverVersion=8.0.39&charset=utf8mb4'
+
+  OpenSearchEndpoint:
+    Description: 'OpenSearch Domain Endpoint'
+    Value: !Sub 'https://${OpenSearchDomain.DomainEndpoint}'
+    Export:
+      Name: !Sub '${AWS::StackName}-OpenSearchEndpoint'
 
   ClusterName:
     Description: 'Name of the ECS cluster'
