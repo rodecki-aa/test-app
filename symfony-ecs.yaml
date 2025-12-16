@@ -33,7 +33,24 @@ Parameters:
     Default: 'symfony_db'
     Description: 'Database name'
 
+  EncryptionKey:
+    Type: String
+    NoEcho: true
+    Default: 'change-me-to-secure-key-32-chars'
+    Description: 'Encryption key for application (stored in Secrets Manager)'
+    MinLength: 16
+
 Resources:
+  # Secrets Manager - Encryption Key
+  EncryptionKeySecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub '${ServiceName}/encryption-key'
+      Description: 'Encryption key for Symfony application'
+      SecretString: !Ref EncryptionKey
+      Tags:
+        - Key: Name
+          Value: !Sub '${ServiceName}-encryption-key'
   # VPC Configuration
   VPC:
     Type: AWS::EC2::VPC
@@ -264,7 +281,8 @@ Resources:
               - Effect: Allow
                 Action:
                   - secretsmanager:GetSecretValue
-                Resource: '*'
+                Resource:
+                  - !Ref EncryptionKeySecret
 
   TaskRole:
     Type: AWS::IAM::Role
@@ -386,6 +404,9 @@ Resources:
               Value: ''
             - Name: OPENSEARCH_PASSWORD
               Value: ''
+          Secrets:
+            - Name: ENCRYPTION_KEY
+              ValueFrom: !Ref EncryptionKeySecret
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -512,3 +533,8 @@ Outputs:
     Export:
       Name: !Sub '${AWS::StackName}-TaskDefinitionArn'
 
+  EncryptionKeySecretArn:
+    Description: 'ARN of the encryption key secret in Secrets Manager'
+    Value: !Ref EncryptionKeySecret
+    Export:
+      Name: !Sub '${AWS::StackName}-EncryptionKeySecretArn'

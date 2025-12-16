@@ -98,6 +98,7 @@ jobs:
               ParameterKey=ImageURI,ParameterValue=${{ steps.build-image.outputs.image }} \
               ParameterKey=DBUsername,ParameterValue=symfonyuser \
               ParameterKey=DBPassword,ParameterValue=${{ secrets.DB_PASSWORD }} \
+              ParameterKey=EncryptionKey,ParameterValue=${{ secrets.ENCRYPTION_KEY }} \
             --capabilities CAPABILITY_NAMED_IAM \
             --region ${{ env.AWS_REGION }}
 
@@ -128,6 +129,7 @@ jobs:
               ParameterKey=ImageURI,ParameterValue=${{ steps.build-image.outputs.image }} \
               ParameterKey=DBUsername,UsePreviousValue=true \
               ParameterKey=DBPassword,UsePreviousValue=true \
+              ParameterKey=EncryptionKey,UsePreviousValue=true \
             --capabilities CAPABILITY_NAMED_IAM \
             --region ${{ env.AWS_REGION }} || echo "No updates to be performed"
 
