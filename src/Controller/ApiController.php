@@ -18,6 +18,16 @@ class ApiController extends AbstractController
     ) {
     }
 
+    #[Route('/health', name: 'health', methods: ['GET'])]
+    public function healthCheck(): JsonResponse
+    {
+        return $this->json([
+            'status' => 'ok',
+            'timestamp' => date('Y-m-d H:i:s'),
+            'message' => 'API is running'
+        ]);
+    }
+
     #[Route('/cars', name: 'cars_index', methods: ['GET'])]
     public function index(Request $request): JsonResponse
     {
@@ -46,7 +56,8 @@ class ApiController extends AbstractController
             ]);
         } catch (\Exception $e) {
             return $this->json([
-                'error' => $e->getMessage()
+                'error' => 'Failed to retrieve cars: ' . $e->getMessage(),
+                'opensearch_host' => $_ENV['OPENSEARCH_HOST'] ?? 'not set'
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
