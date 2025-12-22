@@ -11,11 +11,46 @@
         h1 {
             color: #fff;
         }
+        .env-values {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            color: #333;
+        }
+        .env-values h2 {
+            margin-top: 0;
+            color: #2c3e50;
+        }
+        .env-item {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-left: 3px solid #3498db;
+        }
+        .env-item strong {
+            color: #2980b9;
+        }
     </style>
 {% endblock %}
 
 {% block body %}
     <h1>Run it in clouds</h1>
-    <code>Never tell {{ encryption_key }}</code>
     <p class="cloud-icon">☁</p>
+
+    <div class="env-values">
+        <h2>Environment Variables</h2>
+
+        <div class="env-item">
+            <strong>OPENSEARCH_HOST:</strong> {{ OPENSEARCH_HOST }}
+        </div>
+
+        <div class="env-item">
+            <strong>OPENSEARCH_USERNAME:</strong> {{ OPENSEARCH_USERNAME }}
+        </div>
+
+        <div class="env-item">
+            <strong>OPENSEARCH_PASSWORD:</strong> {{ OPENSEARCH_PASSWORD }}
+        </div>
+    </div>
 {% endblock %}
