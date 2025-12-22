@@ -35,6 +35,18 @@ class OpenSearchService
         // Disable SSL verification for both dev and prod when using AWS
         $clientBuilder->setSSLVerification(false);
 
+        // Configure timeouts to prevent hanging requests
+        // Connection timeout: time to establish connection (5 seconds)
+        // Request timeout: time for entire request (30 seconds)
+        $clientBuilder->setConnectionParams([
+            'client' => [
+                'curl' => [
+                    CURLOPT_CONNECTTIMEOUT => 5,  // Connection timeout in seconds
+                    CURLOPT_TIMEOUT => 30,        // Total request timeout in seconds
+                ]
+            ]
+        ]);
+
         $this->client = $clientBuilder->build();
     }
 
