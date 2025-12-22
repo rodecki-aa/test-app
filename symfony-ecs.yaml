@@ -401,12 +401,11 @@ Resources:
             - Name: OPENSEARCH_HOST
               Value: !Sub 'https://${OpenSearchDomain.DomainEndpoint}'
             - Name: OPENSEARCH_USERNAME
-              Value: ''
+              Value: 'admin'
             - Name: OPENSEARCH_PASSWORD
-              Value: ''
-          Secrets:
+              Value: 'admin'
             - Name: ENCRYPTION_KEY
-              ValueFrom: !Ref EncryptionKeySecret
+              Value: !Ref EncryptionKey
           LogConfiguration:
             LogDriver: awslogs
             Options:
