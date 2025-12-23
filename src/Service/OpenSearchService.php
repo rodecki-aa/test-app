@@ -92,7 +92,18 @@ class OpenSearchService
 
     public function indexExists(): bool
     {
-        return $this->client->indices()->exists(['index' => $this->indexName]);
+        try {
+            return $this->client->indices()->exists(['index' => $this->indexName]);
+        } catch (\Exception $e) {
+            // Log the full error for debugging
+            error_log('OpenSearch indexExists error: ' . $e->getMessage());
+            error_log('OpenSearch host: ' . $this->opensearchHost);
+            error_log('Exception class: ' . get_class($e));
+            if ($e->getPrevious()) {
+                error_log('Previous exception: ' . $e->getPrevious()->getMessage());
+            }
+            throw $e;
+        }
     }
 
     public function indexCar(Car $car): array

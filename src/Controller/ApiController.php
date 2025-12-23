@@ -180,11 +180,51 @@ class ApiController extends AbstractController
                 'index_name' => 'cars'
             ]);
         } catch (\Exception $e) {
-            return $this->json([
+            $errorDetails = [
                 'status' => 'error',
-                'error' => $e->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+                'error' => $e->getMessage(),
+                'error_class' => get_class($e),
+                'opensearch_host' => $_ENV['OPENSEARCH_HOST'] ?? 'not set',
+            ];
+            
+            if ($e->getPrevious()) {
+                $errorDetails['previous_error'] = $e->getPrevious()->getMessage();
+                $errorDetails['previous_class'] = get_class($e->getPrevious());
+            }
+            
+            return $this->json($errorDetails, Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    #[Route('/opensearch/diagnose', name: 'opensearch_diagnose', methods: ['GET'])]
+    public function diagnose(): JsonResponse
+    {
+        $diagnostics = [
+            'opensearch_host' => $_ENV['OPENSEARCH_HOST'] ?? 'not set',
+            'opensearch_username' => $_ENV['OPENSEARCH_USERNAME'] ?? 'not set',
+            'opensearch_password' => $_ENV['OPENSEARCH_PASSWORD'] ? '***set***' : 'not set',
+            'is_vpc_endpoint' => strpos($_ENV['OPENSEARCH_HOST'] ?? '', 'vpc-') !== false,
+        ];
+
+        // Try to get more details from the client
+        try {
+            $client = $this->openSearchService->getClient();
+            $hosts = $client->transport->getConnection()->getHost();
+            $diagnostics['client_host'] = is_array($hosts) ? $hosts[0] : $hosts;
+        } catch (\Exception $e) {
+            $diagnostics['client_error'] = $e->getMessage();
+        }
+
+        // Test DNS resolution
+        if (isset($_ENV['OPENSEARCH_HOST'])) {
+            $host = parse_url($_ENV['OPENSEARCH_HOST'], PHP_URL_HOST);
+            if ($host) {
+                $diagnostics['dns_resolution'] = gethostbyname($host);
+                $diagnostics['dns_host'] = $host;
+            }
+        }
+
+        return $this->json($diagnostics);
     }
 }
 
