@@ -28,3 +28,8 @@ api_cars_init_index:
     controller: App\Controller\CarController::initIndex
     methods: [POST]
 
+api_opensearch_health:
+    path: /api/opensearch/health
+    controller: App\Controller\ApiController::health
+    methods: [GET]
+
