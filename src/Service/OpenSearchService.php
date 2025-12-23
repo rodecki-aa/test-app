@@ -26,8 +26,15 @@ class OpenSearchService
         $clientBuilder = ClientBuilder::create()
             ->setHosts($hosts);
 
-        // Add basic auth if credentials are provided
-        if ($this->opensearchUsername && $this->opensearchPassword) {
+        // AWS OpenSearch VPC endpoints: When AdvancedSecurityOptions is disabled,
+        // authentication is not required. Only add auth if credentials are provided
+        // and the host is not a VPC endpoint (VPC endpoints start with 'vpc-')
+        $isVpcEndpoint = strpos($this->opensearchHost, 'vpc-') !== false;
+        $shouldUseAuth = !empty($this->opensearchUsername) 
+            && !empty($this->opensearchPassword) 
+            && !$isVpcEndpoint;
+
+        if ($shouldUseAuth) {
             $clientBuilder->setBasicAuthentication($this->opensearchUsername, $this->opensearchPassword);
         }
 
