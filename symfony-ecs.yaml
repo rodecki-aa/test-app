@@ -410,7 +410,7 @@ Resources:
             - Name: DATABASE_URL
               Value: !Sub 'mysql://${DBUsername}:${DBPassword}@${MySQLDatabase.Endpoint.Address}:3306/${DBName}?serverVersion=8.0.39&charset=utf8mb4'
             - Name: OPENSEARCH_HOST
-              Value: !Sub 'https://${OpenSearchDomain.DomainEndpoint}:9200'
+              Value: !Sub 'https://${OpenSearchDomain.DomainEndpoint}'
             - Name: OPENSEARCH_USERNAME
               Value: !Ref OPENSEARCHUsername
             - Name: OPENSEARCH_PASSWORD
