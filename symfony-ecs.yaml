@@ -33,6 +33,17 @@ Parameters:
     Default: 'symfony_db'
     Description: 'Database name'
 
+  OPENSEARCHUsername:
+    Type: String
+    Default: 'admin'
+    Description: 'OpenSearch basic auth username'
+
+  OPENSEARCHPassword:
+    Type: String
+    NoEcho: true
+    Default: 'admin'
+    Description: 'OpenSearch basic auth password'
+
   EncryptionKey:
     Type: String
     NoEcho: true
@@ -401,9 +412,9 @@ Resources:
             - Name: OPENSEARCH_HOST
               Value: !Sub 'https://${OpenSearchDomain.DomainEndpoint}'
             - Name: OPENSEARCH_USERNAME
-              Value: 'admin'
+              Value: !Ref OPENSEARCHUsername
             - Name: OPENSEARCH_PASSWORD
-              Value: 'admin'
+              Value: !Ref OPENSEARCHPassword
             - Name: ENCRYPTION_KEY
               Value: !Ref EncryptionKey
           LogConfiguration:
