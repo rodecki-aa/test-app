@@ -21,36 +21,65 @@ class OpenSearchService
 
     private function initializeClient(): void
     {
-        $hosts = [$this->opensearchHost];
+        // Normalize the host URL
+        $host = $this->opensearchHost;
+
+        // Check if it's an AWS VPC endpoint
+        $isVpcEndpoint = strpos($host, 'vpc-') !== false || strpos($host, '.es.amazonaws.com') !== false;
+
+        // Check if it's localhost/local development
+        $isLocalhost = strpos($host, 'localhost') !== false || strpos($host, '127.0.0.1') !== false;
+
+        // Add scheme if not present
+        if (!preg_match('/^https?:\/\//', $host)) {
+            if ($isVpcEndpoint) {
+                $host = 'https://' . $host;
+            } elseif ($isLocalhost) {
+                $host = 'http://' . $host;
+            } else {
+                // Default to https for other hosts
+                $host = 'https://' . $host;
+            }
+        }
+
+        // For AWS VPC endpoints, ensure port 443 is specified
+        if ($isVpcEndpoint && !preg_match('/:\d+$/', $host)) {
+            $parsedUrl = parse_url($host);
+            $host = $parsedUrl['scheme'] . '://' . $parsedUrl['host'] . ':443';
+            if (isset($parsedUrl['path'])) {
+                $host .= $parsedUrl['path'];
+            }
+        }
+
+        $hosts = [$host];
 
         $clientBuilder = ClientBuilder::create()
             ->setHosts($hosts);
 
         // AWS OpenSearch VPC endpoints: When AdvancedSecurityOptions is disabled,
-        // authentication is not required. Only add auth if credentials are provided
-        // and the host is not a VPC endpoint (VPC endpoints start with 'vpc-')
-        $isVpcEndpoint = strpos($this->opensearchHost, 'vpc-') !== false;
-        $shouldUseAuth = !empty($this->opensearchUsername) 
-            && !empty($this->opensearchPassword) 
+        // authentication is not required. Skip auth for VPC endpoints.
+        $shouldUseAuth = !empty($this->opensearchUsername)
+            && !empty($this->opensearchPassword)
             && !$isVpcEndpoint;
 
         if ($shouldUseAuth) {
             $clientBuilder->setBasicAuthentication($this->opensearchUsername, $this->opensearchPassword);
         }
 
-        // AWS OpenSearch VPC endpoints use self-signed certificates
-        // Disable SSL verification for both dev and prod when using AWS
-        $clientBuilder->setSSLVerification(false);
+        // Disable SSL verification for AWS VPC endpoints and localhost
+        if ($isVpcEndpoint || $isLocalhost) {
+            $clientBuilder->setSSLVerification(false);
+        }
 
         // Configure timeouts to prevent hanging requests
-        // Connection timeout: time to establish connection (5 seconds)
-        // Request timeout: time for entire request (30 seconds)
         $clientBuilder->setConnectionParams([
             'client' => [
                 'curl' => [
-                    CURLOPT_CONNECTTIMEOUT => 5,  // Connection timeout in seconds
-                    CURLOPT_TIMEOUT => 30,        // Total request timeout in seconds
-                ]
+                    CURLOPT_CONNECTTIMEOUT => 10,  // Connection timeout in seconds
+                    CURLOPT_TIMEOUT => 30,         // Total request timeout in seconds
+                ],
+                'timeout' => 30,
+                'connect_timeout' => 10,
             ]
         ]);
 
